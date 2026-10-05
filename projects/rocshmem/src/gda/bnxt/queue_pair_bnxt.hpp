@@ -133,7 +133,7 @@ __device__ void QueuePairBNXT::write_rma_wqe(
   bool inline_msg = can_inline<Op>(size);
 
   if constexpr (CheckSQ) {
-    poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT);
+    poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT + GDA_BNXT_SQ_FULL_GUARD_SLOTS);
   }
 
   hdr_ptr  = (struct bnxt_re_bsqe*) get_hwqe(sq, 0);
@@ -270,7 +270,7 @@ __device__ uint64_t* QueuePairBNXT::write_amo_wqe(
   uint64_t* atomic_laddr;
 
   if constexpr (CheckSQ) {
-    poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT);
+    poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT + GDA_BNXT_SQ_FULL_GUARD_SLOTS);
   }
 
   hdr_ptr = (struct bnxt_re_bsqe*)   get_hwqe(sq, 0);

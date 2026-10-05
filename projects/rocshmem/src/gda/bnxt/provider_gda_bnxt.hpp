@@ -38,6 +38,9 @@ namespace rocshmem {
 
 #define GDA_BNXT_WQE_SLOT_COUNT 3
 
+// A full SQ (tail == head) is indistinguishable from an empty one, so keep one slot free.
+#define GDA_BNXT_SQ_FULL_GUARD_SLOTS 1
+
 struct bnxt_device_wq {
   void *buf;
   uint32_t depth;
