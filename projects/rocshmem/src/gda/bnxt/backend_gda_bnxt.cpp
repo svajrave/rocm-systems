@@ -204,8 +204,11 @@ void GDABackend::bnxt_create_qps(int sq_length) {
     ib_qp_attr.qp_type             = IBV_QPT_RC;
     ib_qp_attr.sq_sig_all          = 0;
 
-    /* Alloc qp_mem_info */
+    /* Alloc qp_mem_info. The device code assumes variable-size WQEs, so request that mode
+     * rather than relying on the device default. */
     memset(&bnxt_qps[i].mem_info, 0, sizeof(struct bnxt_re_dv_qp_mem_info));
+    bnxt_qps[i].mem_info.comp_mask = BNXT_RE_DV_QP_COMP_MASK_WQE_MODE;
+    bnxt_qps[i].mem_info.wqe_mode  = BNXT_RE_DV_WQE_MODE_VARIABLE;
     err = bnxt_re_dv.qp_mem_alloc(pd, &ib_qp_attr, &bnxt_qps[i].mem_info);
     CHECK_ZERO(err, "bnxt_re_dv_qp_mem_alloc");
 
@@ -276,6 +279,7 @@ void GDABackend::bnxt_create_qps(int sq_length) {
     bnxt_qps[i].attr.rq_slots       = bnxt_qps[i].mem_info.rq_slots;
     bnxt_qps[i].attr.rq_wqe_sz      = bnxt_qps[i].mem_info.rq_wqe_sz;
     bnxt_qps[i].attr.comp_mask      = bnxt_qps[i].mem_info.comp_mask;
+    bnxt_qps[i].attr.wqe_mode       = bnxt_qps[i].mem_info.wqe_mode;
 
     /* Alloc QP */
     qps[i] = bnxt_re_dv.create_qp(pd, &bnxt_qps[i].attr);

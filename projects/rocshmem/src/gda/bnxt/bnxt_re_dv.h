@@ -122,6 +122,7 @@ int bnxt_re_dv_get_default_db_region(struct ibv_context *ibvctx,
 
 enum  bnxt_re_dv_umem_in_flags {
 	BNXT_RE_DV_UMEM_FLAGS_DMABUF = 1 << 0,
+	BNXT_RE_DV_UMEM_FLAGS_MAP = 1 << 1,
 };
 
 struct bnxt_re_dv_umem_reg_attr {
@@ -131,6 +132,14 @@ struct bnxt_re_dv_umem_reg_attr {
 	uint64_t pgsz_bitmap;
 	uint64_t comp_mask;
 	int dmabuf_fd;
+	void *pa_buf;
+	size_t pa_buf_sz;
+	uint32_t map_pg_sz;
+};
+
+/* Direct Verbs CQ comp_mask flags */
+enum bnxt_re_dv_cq_comp_mask {
+	BNXT_RE_DV_CQ_FLAG_L2 = 1ULL << 0, /* L2 CQ */
 };
 
 struct bnxt_re_dv_cq_init_attr {
@@ -138,11 +147,28 @@ struct bnxt_re_dv_cq_init_attr {
 	void *umem_handle; /* umem_handle from umem_reg */
 	uint64_t cq_umem_offset;	/* offset into umem */
 	uint32_t ncqe;
+	uint64_t comp_mask; /* compatibility mask for future updates */
+	uint32_t cqid; /* output */
 };
 
 struct bnxt_re_dv_cq_attr {
 	uint32_t ncqe; /* no. of entries */
 	uint32_t cqe_size; /* size of entries */
+};
+
+/* DV WQE mode values for wqe_mode field in bnxt_re_dv_qp_init_attr
+ * and bnxt_re_dv_qp_mem_info.  Set BNXT_RE_DV_QP_COMP_MASK_WQE_MODE in
+ * comp_mask to activate; otherwise the device default WQE mode is used.
+ */
+enum bnxt_re_dv_wqe_mode {
+	BNXT_RE_DV_WQE_MODE_DEFAULT  = 0x00, /* use device default */
+	BNXT_RE_DV_WQE_MODE_VARIABLE = 0x01,
+	BNXT_RE_DV_WQE_MODE_STATIC   = 0x02,
+};
+
+/* Compatibility mask flags for bnxt_re_dv_qp_init_attr */
+enum {
+	BNXT_RE_DV_QP_COMP_MASK_WQE_MODE = 0x1,
 };
 
 struct bnxt_re_dv_qp_init_attr {
@@ -173,6 +199,7 @@ struct bnxt_re_dv_qp_init_attr {
 	uint32_t rq_slots;	/* rq length in slots */
 	uint32_t rq_wqe_sz;     /* rq wqe size */
 	uint64_t comp_mask;	/* compatibility mask for future updates */
+	enum bnxt_re_dv_wqe_mode wqe_mode;
 };
 
 struct bnxt_re_dv_qp_mem_info {
@@ -188,6 +215,7 @@ struct bnxt_re_dv_qp_mem_info {
 	uint32_t rq_slots;      /* rq length in slots */
 	uint32_t rq_wqe_sz;     /* rq wqe size */
 	uint64_t comp_mask;     /* compatibility bit mask */
+	enum bnxt_re_dv_wqe_mode wqe_mode;
 };
 
 void *bnxt_re_dv_umem_reg(struct ibv_context *ibvctx,
