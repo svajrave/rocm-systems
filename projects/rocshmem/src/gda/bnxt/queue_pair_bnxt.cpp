@@ -239,7 +239,7 @@ __device__ void QueuePair::bnxt_write_rma_wqe(int32_t length, uintptr_t raddr,
   inline_msg = static_cast<int32_t>(length) <= static_cast<int32_t>(inline_threshold) &&
                opcode == gda_op_rdma_write;
 
-  bnxt_poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT);
+  bnxt_poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT + GDA_BNXT_SQ_FULL_GUARD_SLOTS);
 
   hdr_ptr  = (struct bnxt_re_bsqe*) bnxt_re_get_hwqe(&bnxt_sq, 0);
   rdma_ptr = (struct bnxt_re_rdma*) bnxt_re_get_hwqe(&bnxt_sq, 1);
@@ -340,7 +340,7 @@ __device__ uint32_t QueuePair::bnxt_write_amo_wqe(uintptr_t raddr, uint32_t rkey
   uint32_t atomic_idx = 0;
   uint32_t length = sizeof(uint64_t);
 
-  bnxt_poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT);
+  bnxt_poll_cq_until(GDA_BNXT_WQE_SLOT_COUNT + GDA_BNXT_SQ_FULL_GUARD_SLOTS);
 
   hdr_ptr = (struct bnxt_re_bsqe*)   bnxt_re_get_hwqe(&bnxt_sq, 0);
   amo_ptr = (struct bnxt_re_atomic*) bnxt_re_get_hwqe(&bnxt_sq, 1);
