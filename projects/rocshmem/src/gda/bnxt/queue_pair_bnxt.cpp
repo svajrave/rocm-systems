@@ -131,7 +131,7 @@ __device__ void QueuePair::bnxt_ring_doorbell(uint32_t slot_idx) {
   __hip_atomic_store(bnxt_dbr, hdr.typ_qid_indx, __ATOMIC_SEQ_CST, __HIP_MEMORY_SCOPE_SYSTEM);
 }
 
-[[maybe_unused]] __attribute__((noinline))
+__attribute__((noinline))
 __device__ void QueuePair::bnxt_print_cqe_error(uint8_t status) {
   switch (status) {
   case BNXT_RE_REQ_ST_BAD_RESP:
@@ -173,6 +173,13 @@ __device__ void QueuePair::bnxt_print_cqe_error(uint8_t status) {
   }
 }
 
+__device__ static inline uint32_t bnxt_re_cqe_flags(struct bnxt_re_req_cqe *cqe) {
+  return __hip_atomic_load(
+      static_cast<uint32_t*>(__builtin_assume_aligned(
+          (char*)cqe + sizeof(struct bnxt_re_req_cqe) + offsetof(struct bnxt_re_bcqe, flg_st_typ_ph), 4)),
+      __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM);
+}
+
 __device__ void QueuePair::bnxt_poll_cq_until(uint32_t requested_available_slots) {
   struct bnxt_re_req_cqe *cqe;
   uint32_t sq_tail;
@@ -186,18 +193,6 @@ __device__ void QueuePair::bnxt_poll_cq_until(uint32_t requested_available_slots
   do {
     cqe = (struct bnxt_re_req_cqe *) bnxt_cq.buf;
 
-#ifdef BUILD_DEBUG_DEVICE
-    {
-      uint32_t flg_val = __hip_atomic_load(
-          static_cast<uint32_t*>(__builtin_assume_aligned(
-              (char*)cqe + sizeof(struct bnxt_re_req_cqe) + offsetof(struct bnxt_re_bcqe, flg_st_typ_ph), 4)),
-          __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM);
-      uint8_t status = (flg_val >> BNXT_RE_BCQE_STATUS_SHIFT) & BNXT_RE_BCQE_STATUS_MASK;
-      if (status != BNXT_RE_REQ_ST_OK)
-        bnxt_print_cqe_error(status);
-    }
-#endif
-
     /* Update the SQ head
      * This param provides us the wqe_idx but we need to convert to the slot idx.
      * We assume a static slots size of GDA_BNXT_WQE_SLOT_COUNT thus can multiply by this value */
@@ -208,6 +203,18 @@ __device__ void QueuePair::bnxt_poll_cq_until(uint32_t requested_available_slots
 
     consumed_slots  = (sq_tail - sq_head + sq_depth) % sq_depth;
     available_slots = sq_depth - consumed_slots;
+
+    /* A QP in error stops advancing con_indx, so only check while waiting. The hardware
+     * reports a QP failure as a terminal CQE whose status field is still OK. */
+    if (available_slots < requested_available_slots) {
+      uint32_t flg_val = bnxt_re_cqe_flags(cqe);
+      uint8_t type = (flg_val >> BNXT_RE_BCQE_TYPE_SHIFT) & BNXT_RE_BCQE_TYPE_MASK;
+      uint8_t status = (flg_val >> BNXT_RE_BCQE_STATUS_SHIFT) & BNXT_RE_BCQE_STATUS_MASK;
+      if (type == BNXT_RE_WC_TYPE_TERM)
+        LOGD_ERROR_ABORT("CQ error: QP moved to error state (terminal CQE, status %x)", status);
+      if (status != BNXT_RE_REQ_ST_OK)
+        bnxt_print_cqe_error(status);
+    }
   } while (available_slots < requested_available_slots);
 }
 
