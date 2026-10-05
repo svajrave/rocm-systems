@@ -112,9 +112,7 @@ private:
   static __device__ struct bnxt_re_msns* pull_psn_buff(const bnxt_device_sq& sq);
   static __device__ uint64_t update_msn_tbl(uint32_t st_idx, uint32_t npsn, uint32_t start_psn);
 
-#if defined(BUILD_DEBUG_DEVICE)
   __device__ __noinline__ void print_cqe_error(uint8_t status);
-#endif
 };
 
 template <QueuePairBNXT::OpCode Op, bool CheckSQ>
@@ -442,6 +440,25 @@ __device__ inline void QueuePairBNXT::poll_cq_until(uint32_t requested_available
 
     consumed_slots  = (sq_tail - sq_head + sq_depth) % sq_depth;
     available_slots = sq_depth - consumed_slots;
+
+    /* A QP in error stops advancing con_indx, so only check while waiting. The hardware
+     * reports a QP failure as a terminal CQE whose status field is still OK. */
+    if (available_slots < requested_available_slots) {
+      uint32_t cqe_flags =
+          __scoped_atomic_load_n(static_cast<uint32_t*>(
+              __builtin_assume_aligned((char*)cqe + sizeof(struct bnxt_re_req_cqe)
+                                                  + offsetof(struct bnxt_re_bcqe, flg_st_typ_ph),
+                                       4)),
+              __ATOMIC_RELAXED, __MEMORY_SCOPE_SYSTEM);
+      uint8_t cqe_type = (cqe_flags >> BNXT_RE_BCQE_TYPE_SHIFT) & BNXT_RE_BCQE_TYPE_MASK;
+      uint8_t cqe_status = (cqe_flags >> BNXT_RE_BCQE_STATUS_SHIFT) & BNXT_RE_BCQE_STATUS_MASK;
+      if (cqe_type == BNXT_RE_WC_TYPE_TERM) {
+        LOGD_ERROR_ABORT("CQ error: QP moved to error state (terminal CQE, status %x)", cqe_status);
+      }
+      if (cqe_status != BNXT_RE_REQ_ST_OK) {
+        print_cqe_error(cqe_status);
+      }
+    }
   } while (available_slots < requested_available_slots);
 }
 
@@ -550,7 +567,6 @@ __device__ __forceinline__ void QueuePairBNXT::release_lock(uint32_t* lock) {
   __scoped_atomic_store_n(lock, 0, __ATOMIC_RELEASE, __MEMORY_SCOPE_SYSTEM);
 }
 
-#if defined(BUILD_DEBUG_DEVICE)
 __device__ inline __noinline__ void QueuePairBNXT::print_cqe_error(uint8_t status) {
   switch (status) {
   case BNXT_RE_REQ_ST_BAD_RESP:
@@ -591,7 +607,6 @@ __device__ inline __noinline__ void QueuePairBNXT::print_cqe_error(uint8_t statu
     break;
   }
 }
-#endif  // BUILD_DEBUG_DEVICE
 
 }  // namespace rocshmem
 
