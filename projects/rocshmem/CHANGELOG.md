@@ -13,6 +13,7 @@
     improving application performance when such relaxations are known to be safe by the caller.
     These relaxations can be applied independently at each call site.
     This is currently an internal mechanism and is not exposed by the public rocSHMEM APIs.
+* Added `ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE` (`PIX`/`PXB`/`PHB`/`SYS`) for the GDA BNXT backend. When set, initialization fails if a selected NIC is farther from the GPU than the given PCIe distance, since RDMA atomics through such a NIC can be silently dropped
 
 ## rocSHMEM 3.7.0 for ROCm 10.1
 

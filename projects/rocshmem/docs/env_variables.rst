@@ -172,6 +172,14 @@ control the behavior of rocSHMEM.
       - ``1024``
       - | Maximum number of Work Queue Entries (WQEs) posted on the Send Queue (SQ)
 
+    * - | ``ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE``
+        | Maximum PCIe distance between a GPU and a NIC for which RDMA atomics are
+        | considered safe (BNXT NICs only).
+      - Unset (no check)
+      - | ``PIX``, ``PXB``, ``PHB`` or ``SYS``, in increasing distance. When set,
+        | initialization fails if a NIC selected for the GPU is farther away than this value,
+        | because the PCIe fabric can silently drop the atomic TLP and hang the job.
+
     * - | ``ROCSHMEM_GDA_NUM_QPS_PER_PE_DEFAULT_CTX``
         | Sets the number of Queue Pairs (QPs) to create per PE for the default context.
       - ``1``

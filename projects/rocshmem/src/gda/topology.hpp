@@ -71,6 +71,11 @@ namespace rocshmem
 
   NicPathType ParseNicMergeLevel(const std::string &level_str);
 
+  /** Strict parse of PIX/PXB/PHB/SYS (case-insensitive). Returns false if unrecognized. */
+  bool ParseNicPathType(const std::string &str, NicPathType *out);
+
+  const char *NicPathTypeName(NicPathType type);
+
   std::vector<std::string> ParseNicList(const std::string &csv);
 
   std::string SelectRankGroup(const std::string &spec, int rank);
@@ -79,6 +84,9 @@ namespace rocshmem
 
   NicPathType ComputeGpuNicPathType(int gpuIndex, const std::string &nicBusId,
                                     int nicNuma);
+
+  /** PCIe path type between a GPU and the NIC with the given name. False if the NIC is unknown. */
+  bool GetGpuNicPathType(int gpuIndex, const std::string &nicName, NicPathType *out);
 
   /**
    * Enumeration of GID priority

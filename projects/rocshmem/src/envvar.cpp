@@ -215,6 +215,11 @@ namespace envvar {
     const var<std::string> net_merge_level("NET_MERGE_LEVEL",
       "Maximum PCIe path type for auto-merge NIC selection (PIX/PXB/PHB/SYS)",
       "PIX");
+    const var<std::string> amo_max_pci_distance("AMO_MAX_PCI_DISTANCE",
+      "Maximum PCIe distance (PIX/PXB/PHB/SYS) between a GPU and a NIC for which RDMA atomics are "
+      "considered safe. When set, BNXT GDA initialization fails if a selected NIC is farther from "
+      "the GPU than this value, since the PCIe fabric can silently drop the atomic TLP. "
+      "Unset: no check");
     const var<std::string> net_force_merge("NET_FORCE_MERGE",
       "Force-merge specific NICs by name. Comma-separated list, semicolon-separated rank groups");
     const var<std::string> nic_policy("NIC_POLICY",
