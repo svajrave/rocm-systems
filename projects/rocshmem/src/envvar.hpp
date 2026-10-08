@@ -567,6 +567,7 @@ namespace envvar {
     extern const var<size_t> num_qps_per_pe_usr_ctx;
     extern const var<bool> merge_nics;
     extern const var<std::string> net_merge_level;
+    extern const var<std::string> amo_max_pci_distance;
     extern const var<std::string> net_force_merge;
     extern const var<std::string> nic_policy;
     extern const var<size_t> num_user_buffers;

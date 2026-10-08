@@ -1,6 +1,9 @@
 # Changelog for rocSHMEM
 ## Unreleased - rocSHMEM 3.8.0 for ROCm 10.x
 
+### Added
+* Added `ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE` (`PIX`/`PXB`/`PHB`/`SYS`) for the GDA BNXT backend. When set, initialization fails if a selected NIC is farther from the GPU than the given PCIe distance, since RDMA atomics through such a NIC can be silently dropped
+
 ## rocSHMEM 3.7.0 for ROCm 10.1
 
 ### Added

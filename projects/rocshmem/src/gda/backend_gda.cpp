@@ -1464,8 +1464,43 @@ int GDABackend::backend_can_run() {
   return ROCSHMEM_ERROR;
 }
 
+void GDABackend::validate_amo_pci_distance() {
+  const std::string &limit_str = envvar::gda::amo_max_pci_distance.get_value();
+  if (limit_str.empty() || gda_provider != GDAProvider::BNXT) return;
+
+  NicPathType limit;
+  if (!ParseNicPathType(limit_str, &limit)) {
+    LOG_ERROR_EXIT("ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE='%s' is not valid (expected PIX, PXB, PHB or SYS)",
+                   limit_str.c_str());
+  }
+
+  int gpu_dev = 0;
+  CHECK_HIP(hipGetDevice(&gpu_dev));
+
+  for (const auto &nic : nic_devices_) {
+    NicPathType path;
+    if (!GetGpuNicPathType(gpu_dev, nic.nic_name, &path)) {
+      LOG_ERROR_EXIT("PE %d: cannot determine the PCIe distance between GPU %d and NIC %s, "
+                     "needed for ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE=%s",
+                     my_pe, gpu_dev, nic.nic_name.c_str(), limit_str.c_str());
+    }
+    LOG_INFO("PE %d GPU %d NIC %s PCIe distance %s (AMO limit %s)", my_pe, gpu_dev,
+             nic.nic_name.c_str(), NicPathTypeName(path), NicPathTypeName(limit));
+    if (path > limit) {
+      LOG_ERROR_EXIT("PE %d: NIC %s is %s from GPU %d, farther than "
+                     "ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE=%s. RDMA atomics through this NIC can be silently "
+                     "dropped by the PCIe fabric and hang. Select a closer NIC (ROCSHMEM_HCA_LIST), or "
+                     "raise the limit only if this topology is known to be safe",
+                     my_pe, nic.nic_name.c_str(), NicPathTypeName(path), gpu_dev,
+                     NicPathTypeName(limit));
+    }
+  }
+}
+
 void GDABackend::setup_ibv() {
   open_dv_libs();
+
+  validate_amo_pci_distance();
 
   open_ib_device();
 

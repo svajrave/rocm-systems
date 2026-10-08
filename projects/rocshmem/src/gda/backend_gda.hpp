@@ -194,6 +194,9 @@ class GDABackend : public Backend {
    */
   void select_nics();
 
+  /* Fails init if a selected NIC is farther from the GPU than ROCSHMEM_GDA_AMO_MAX_PCI_DISTANCE (BNXT only). */
+  void validate_amo_pci_distance();
+
   void configure_nic_policy();
   void log_ctx_nics(unsigned int ctx_id, size_t qps_per_pe, int qp_offset);
 

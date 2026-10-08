@@ -838,6 +838,39 @@ namespace rocshmem
     return NIC_PATH_SYS;
   }
 
+  bool ParseNicPathType(const std::string &str, NicPathType *out)
+  {
+    std::string upper = str;
+    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+    if (upper == "PIX") { *out = NIC_PATH_PIX; return true; }
+    if (upper == "PXB") { *out = NIC_PATH_PXB; return true; }
+    if (upper == "PHB") { *out = NIC_PATH_PHB; return true; }
+    if (upper == "SYS") { *out = NIC_PATH_SYS; return true; }
+    return false;
+  }
+
+  const char *NicPathTypeName(NicPathType type)
+  {
+    switch (type) {
+      case NIC_PATH_PIX: return "PIX";
+      case NIC_PATH_PXB: return "PXB";
+      case NIC_PATH_PHB: return "PHB";
+      case NIC_PATH_SYS: return "SYS";
+    }
+    return "UNKNOWN";
+  }
+
+  bool GetGpuNicPathType(int gpuIndex, const std::string &nicName, NicPathType *out)
+  {
+    for (auto const &dev : GetIbvDeviceList()) {
+      if (dev.name == nicName) {
+        *out = ComputeGpuNicPathType(gpuIndex, dev.busId, dev.numaNode);
+        return true;
+      }
+    }
+    return false;
+  }
+
   std::vector<std::string> ParseNicList(const std::string &csv)
   {
     std::vector<std::string> result;
