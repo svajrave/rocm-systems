@@ -271,6 +271,7 @@ __device__ void QueuePair::bnxt_write_rma_wqe(int32_t length, uintptr_t raddr,
   /* Populate RDMA Segment */
   rdma.rva  = raddr;
   rdma.rkey = rkey;
+  rdma.ts   = 0;
 
   if (!inline_msg) {
     /* Populate SG Segment */
@@ -284,7 +285,13 @@ __device__ void QueuePair::bnxt_write_rma_wqe(int32_t length, uintptr_t raddr,
   memcpy(rdma_ptr, &rdma, sizeof(struct bnxt_re_rdma));
 
   if (inline_msg) {
-    memcpy(sge_ptr,  reinterpret_cast<const void*>(laddr),  length);
+    /* inline_threshold is 8: issue all byte loads, then one store, instead of a load/wait byte loop */
+    const uint8_t *src = reinterpret_cast<const uint8_t*>(laddr);
+    uint64_t data = 0;
+#pragma unroll
+    for (int i = 0; i < 8; i++)
+      if (i < length) data |= static_cast<uint64_t>(src[i]) << (8 * i);
+    memcpy(sge_ptr, &data, sizeof(data));
   } else {
     memcpy(sge_ptr,  &sge,  sizeof(struct bnxt_re_sge));
   }
@@ -306,7 +313,8 @@ __device__ void QueuePair::bnxt_post_wqe_rma(int32_t length,
   for (int i = 0; i < wf_info.num_pe_group_lanes; i++) {
     if (i == wf_info.pe_group_logical_lane_id) {
       bnxt_write_rma_wqe(length, raddr, rkey, laddr, lkey, opcode);
-      if (ring_db) {
+      /* One doorbell for the whole group, rung after the last lane's WQE is written */
+      if (ring_db && i == wf_info.num_pe_group_lanes - 1) {
         bnxt_ring_doorbell(bnxt_sq.tail);
       }
     }
