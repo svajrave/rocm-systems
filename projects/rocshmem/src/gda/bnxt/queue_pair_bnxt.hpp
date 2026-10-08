@@ -156,6 +156,7 @@ __device__ void QueuePairBNXT::write_rma_wqe(
   /* Populate RDMA Segment */
   rdma.rva  = raddr;
   rdma.rkey = rkey;
+  rdma.ts   = 0;
 
   if (!inline_msg) {
     /* Populate SG Segment */
@@ -169,7 +170,15 @@ __device__ void QueuePairBNXT::write_rma_wqe(
   memcpy(rdma_ptr, &rdma, sizeof(struct bnxt_re_rdma));
 
   if (inline_msg) {
-    memcpy(sge_ptr, reinterpret_cast<void*>(laddr), size);
+    /* Issue all byte loads, then one store, instead of a load/wait byte loop. */
+    static_assert(QueuePairTraits<QueuePairBNXT>::InlineThreshold <= sizeof(uint64_t),
+                  "inline payload must fit in one 8-byte word");
+    const uint8_t *src = reinterpret_cast<const uint8_t*>(laddr);
+    uint64_t data = 0;
+#pragma unroll
+    for (int i = 0; i < 8; i++)
+      if (static_cast<size_t>(i) < size) data |= static_cast<uint64_t>(src[i]) << (8 * i);
+    memcpy(sge_ptr, &data, sizeof(data));
   } else {
     memcpy(sge_ptr, &sge, sizeof(struct bnxt_re_sge));
   }
@@ -203,9 +212,11 @@ __device__ __noinline__ void QueuePairBNXT::post_wqe_rma(
       /* Write WQE to SQ */
       write_rma_wqe<Op, PostOptions::CheckSQ>(laddr, lkey, raddr, rkey, size, signaled);
 
-      /* Ring Doorbell */
+      /* One doorbell for the whole group, rung after the last lane's WQE is written */
       if constexpr (PostOptions::RingDB) {
-        ring_doorbell(sq.tail);
+        if (i == wf_info.num_pe_group_lanes - 1) {
+          ring_doorbell(sq.tail);
+        }
       }
     }
   }
