@@ -57,6 +57,14 @@
   }                                                                       \
 }
 
+/* Converts wall_clock64() ticks measured on the current device to microseconds. */
+[[maybe_unused]] static double wall_clock_ticks_to_us(long long ticks) {
+    int dev = 0, wall_clock_khz = 0;
+    CHECK_HIP(hipGetDevice(&dev));
+    CHECK_HIP(hipDeviceGetAttribute(&wall_clock_khz, hipDeviceAttributeWallClockRate, dev));
+    return static_cast<double>(ticks) / (static_cast<double>(wall_clock_khz) * 1e-3);
+}
+
 [[maybe_unused]] static int get_launcher_local_rank() {
     char *local_rank_str = nullptr;
 

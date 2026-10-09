@@ -50,7 +50,10 @@
          -L/opt/rocm/lib -lamdhip64 -lhsa-runtime64
 
  * To run:
-   mpirun -np 8 -x ROCSHMEM_MAX_NUM_CONTEXTS=2 ./rocshmem_getmem_test
+   mpirun -np 8 -x ROCSHMEM_MAX_NUM_CONTEXTS=2 ./rocshmem_getmem_test [nelem] [iterations]
+
+ * After the correctness check, PE 0 times blocking getmem + quiet from PE 1 and prints
+ * the average latency per operation (default 100 iterations).
 
  */
 
@@ -72,6 +75,23 @@ __global__ void simple_getmem_test(int *src, int *dst, size_t nelem)
     }
 
     __syncthreads();
+}
+
+/* PE 0 only: average latency of a blocking getmem + quiet from PE 1. */
+__global__ void getmem_latency_test(int *src, int *dst, size_t nelem, int iters, long long *ticks)
+{
+    if (blockIdx.x * blockDim.x + threadIdx.x == 0 && rocshmem_my_pe() == 0) {
+        for (int i = 0; i < 10; i++) {  /* warm up */
+            rocshmem_getmem(dst, src, nelem * sizeof(int), 1);
+            rocshmem_quiet();
+        }
+        long long start = wall_clock64();
+        for (int i = 0; i < iters; i++) {
+            rocshmem_getmem(dst, src, nelem * sizeof(int), 1);
+            rocshmem_quiet();
+        }
+        *ticks = wall_clock64() - start;
+    }
 }
 
 #define MAX_ELEM 256
@@ -121,6 +141,22 @@ int main (int argc, char **argv)
         }
     }
     printf("Test %s \t %s\n", argv[0], pass ? "[PASS]" : "[FAIL]");
+
+    int iters = (argc > 2) ? atoi(argv[2]) : 100;
+    long long *d_ticks;
+    CHECK_HIP(hipMalloc(&d_ticks, sizeof(long long)));
+    CHECK_HIP(hipMemset(d_ticks, 0, sizeof(long long)));
+    rocshmem_barrier_all();
+    getmem_latency_test<<<dim3(1), dim3(64), 0, 0>>>(src, dst, nelem, iters, d_ticks);
+    CHECK_HIP(hipDeviceSynchronize());
+    rocshmem_barrier_all();
+    if (my_pe == 0) {
+        long long ticks = 0;
+        CHECK_HIP(hipMemcpy(&ticks, d_ticks, sizeof(ticks), hipMemcpyDeviceToHost));
+        printf("[PE 0] getmem latency: %.2f us per op (avg of %d iterations, %zu bytes, blocking getmem + quiet from PE 1)\n",
+               wall_clock_ticks_to_us(ticks) / iters, iters, nelem * sizeof(int));
+    }
+    CHECK_HIP(hipFree(d_ticks));
 
     rocshmem_free(src);
     rocshmem_free(dst);
